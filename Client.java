@@ -6,7 +6,7 @@ import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.net.Socket;
 
-//ini program client
+//ini program client Cuncun
 public class Client {
 
     private static final String SERVER_ADDRESS = "localhost";
