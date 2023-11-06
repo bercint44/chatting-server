@@ -9,6 +9,7 @@ import java.net.Socket;
 import java.util.HashSet;
 import java.util.Set;
 
+//ini program server
 public class Server {
     private static final int PORT = 7890;
     private static Set<PrintWriter> clientWriters = new HashSet<>();
